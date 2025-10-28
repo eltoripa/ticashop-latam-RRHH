@@ -120,16 +120,23 @@ router.put("/vacaciones/:id", (req, res) => {
   );
 });
 
-//
-// 🌴 2️⃣ Solicitar vacaciones
-//
-router.post("/vacaciones", (req, res) => {
-  const { empleado, fecha_inicio, fecha_fin } = req.body;
+// 🌴 Solicitar vacaciones desde el panel del empleado
+router.post("/empleado/:id/vacaciones", (req, res) => {
+  const usuario_id = req.params.id;
+  const { fecha_inicio, fecha_fin } = req.body;
+
+  if (!fecha_inicio || !fecha_fin) {
+    return res.status(400).json({ error: "Faltan fechas de inicio o fin" });
+  }
+
   db.query(
-    "INSERT INTO vacaciones (empleado, fecha_inicio, fecha_fin) VALUES (?, ?, ?)",
-    [empleado, fecha_inicio, fecha_fin],
+    "INSERT INTO vacaciones (usuario_id, fecha_inicio, fecha_fin, estado) VALUES (?, ?, ?, 'pendiente')",
+    [usuario_id, fecha_inicio, fecha_fin],
     (err, result) => {
-      if (err) return res.status(500).json(err);
+      if (err) {
+        console.error("❌ Error al registrar vacaciones:", err);
+        return res.status(500).json(err);
+      }
       res.json({
         mensaje: "✅ Solicitud de vacaciones enviada correctamente",
         id: result.insertId,
@@ -137,6 +144,7 @@ router.post("/vacaciones", (req, res) => {
     }
   );
 });
+
 // 💼 Obtener todos los empleados (para mostrar en select)
 router.get("/empleados", (req, res) => {
   db.query(
@@ -229,6 +237,79 @@ router.put("/firmar/:id", (req, res) => {
         firmaEmpleado,
         fecha: new Date(),
       });
+    }
+  );
+});
+//
+// 📋 Obtener liquidaciones de un empleado
+//
+router.get("/empleado/:id/liquidaciones", (req, res) => {
+  db.query(
+    "SELECT * FROM liquidaciones WHERE usuario_id = ? ORDER BY fecha DESC",
+    [req.params.id],
+    (err, results) => {
+      if (err) return res.status(500).json(err);
+      res.json(results);
+    }
+  );
+});
+
+//
+// 🌴 Obtener solicitudes de vacaciones del empleado
+//
+router.get("/empleado/:id/vacaciones", (req, res) => {
+  db.query(
+    "SELECT * FROM vacaciones WHERE usuario_id = ? ORDER BY fecha_inicio DESC",
+    [req.params.id],
+    (err, results) => {
+      if (err) return res.status(500).json(err);
+      res.json(results);
+    }
+  );
+});
+
+//
+// 🌴 Enviar nueva solicitud de vacaciones (desde empleado)
+//
+router.post("/empleado/:id/vacaciones", (req, res) => {
+  const { fecha_inicio, fecha_fin } = req.body;
+  db.query(
+    "INSERT INTO vacaciones (usuario_id, fecha_inicio, fecha_fin, estado) VALUES (?, ?, ?, 'Pendiente')",
+    [req.params.id, fecha_inicio, fecha_fin],
+    (err, result) => {
+      if (err) return res.status(500).json(err);
+      res.json({ mensaje: "Solicitud de vacaciones enviada", id: result.insertId });
+    }
+  );
+});
+
+
+
+// 📋 Obtener todas las liquidaciones (solo RRHH o para ver histórico)
+router.get("/liquidaciones", (req, res) => {
+  db.query(
+    `SELECT id, empleado, sueldo_base, total_liquido, fecha, firma_empleador, firma_empleado
+     FROM liquidaciones
+     ORDER BY fecha DESC`,
+    (err, results) => {
+      if (err) return res.status(500).json(err);
+      res.json(results);
+    }
+  );
+});
+
+// 📋 Obtener las vacaciones de un empleado específico
+router.get("/empleado/:id/vacaciones", (req, res) => {
+  const usuarioId = req.params.id;
+  db.query(
+    `SELECT v.id, u.nombre AS empleado, v.fecha_inicio, v.fecha_fin, v.estado
+     FROM vacaciones v
+     JOIN usuarios u ON v.usuario_id = u.id
+     WHERE v.usuario_id = ?`,
+    [usuarioId],
+    (err, results) => {
+      if (err) return res.status(500).json(err);
+      res.json(results);
     }
   );
 });
